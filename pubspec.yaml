@@ -1,0 +1,8 @@
+name: garage_door_controller 
+version: 0.1.0
+author: Ben Konyi <bkonyi@google.com> 
+environment:
+  sdk: '>=1.0.0 <2.0.0'
+dependencies:
+  rpi_gpio:
+    git: git@github.com:bkonyi/rpi_gpio.dart.git
