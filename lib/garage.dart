@@ -7,29 +7,13 @@ import 'package:rpi_gpio/gpio.dart';
 import 'package:rpi_gpio/gpio_pins.dart';
 import 'package:rpi_gpio/wiringpi_gpio.dart';
 
+import 'src/garage_common.dart';
+
 String localFile(path) => Platform.script.resolve(path).toFilePath();
 final _serverContext = SecurityContext()
   ..useCertificateChain(localFile('domain.crt'))
   ..usePrivateKey(localFile('domain.key'))
   ..setTrustedCertificates(localFile('client.crt'));
-
-final clientContext = SecurityContext()
-  ..useCertificateChain(localFile('client.crt'))
-  ..usePrivateKey(localFile('client.key'))
-  ..setTrustedCertificates(localFile('domain.crt'));
-
-// Since we're using a self-signed cert, we can't verify. Not ideal, but it is
-// what it is.
-bool _onBadCertificate(X509Certificate cert) => true;
-
-final _garageExternalIP = InternetAddress.loopbackIPv6;
-const _garagePort = 1416;
-const _garageEventType = 'event_type';
-const _garageResponse = 'response';
-const _garageOpenEvent = 1;
-const _garageCloseEvent = 2;
-const _garageTriggerEvent = 3;
-const _garageIsOpenEvent = 4;
 
 enum GarageDoorTriggerType {
   Open,
@@ -45,13 +29,13 @@ class GarageDoorTrigger {
 
   GarageDoorTriggerType get type {
     switch (_type) {
-      case _garageOpenEvent:
+      case garageOpenEvent:
         return GarageDoorTriggerType.Open;
-      case _garageCloseEvent:
+      case garageCloseEvent:
         return GarageDoorTriggerType.Close;
-      case _garageTriggerEvent:
+      case garageTriggerEvent:
         return GarageDoorTriggerType.Trigger;
-      case _garageIsOpenEvent:
+      case garageIsOpenEvent:
         return GarageDoorTriggerType.IsOpenQuery;
       default:
         throw 'Unexpected GarageDoorTriggerType: $_type';
@@ -62,47 +46,12 @@ class GarageDoorTrigger {
 
   Future<void> response(r) {
     final message = <String, dynamic>{
-      _garageResponse: r,
+      garageResponse: r,
     };
     return _socket.write(JSON.encode(message));
   }
 
   GarageDoorTrigger._(this._type, this._socket) : time = DateTime.now();
-}
-
-class GarageDoorRemote {
-  static Future<bool> get isOpen async =>
-      _sendRequest(_garageIsOpenEvent, true);
-  static Future<bool> openDoor() async => _sendRequest(_garageOpenEvent);
-  static Future<bool> closeDoor() async => _sendRequest(_garageCloseEvent);
-  static Future<bool> triggerDoor() async => _sendRequest(_garageTriggerEvent);
-
-  static Future<bool> _sendRequest(int type,
-      [bool returnResponse = false]) async {
-    try {
-      final connection = await SecureSocket.connect(
-          _garageExternalIP, _garagePort,
-          context: clientContext, onBadCertificate: _onBadCertificate);
-      final request = {
-        _garageEventType: type,
-      };
-      connection.write(JSON.encode(request));
-      if (returnResponse) {
-        final completer = Completer<bool>();
-        connection.listen((r) {
-          final Map response = JSON.decode(UTF8.decode(r));
-          completer.complete(response[_garageResponse]);
-        });
-        connection.close();
-        return completer.future;
-      }
-      connection.close();
-      return true;
-    } catch (e) {
-      print('Client Error: $e');
-      return false;
-    }
-  }
 }
 
 class GarageDoorRemoteHandler {
@@ -113,7 +62,7 @@ class GarageDoorRemoteHandler {
       remoteRequests.listen(f);
 
   static Future startListening() => SecureServerSocket.bind(
-          InternetAddress.loopbackIPv6, _garagePort, _serverContext,
+          InternetAddress.anyIPv6, garagePort, _serverContext,
           requireClientCertificate: true)
       .then((server) => server.listen(_onConnection));
 
@@ -124,8 +73,8 @@ class GarageDoorRemoteHandler {
         assert(requestObj is Map);
         Map request = requestObj;
         print('Request: $request');
-        assert(request.containsKey(_garageEventType));
-        _controller.add(GarageDoorTrigger._(request[_garageEventType], s));
+        assert(request.containsKey(garageEventType));
+        _controller.add(GarageDoorTrigger._(request[garageEventType], s));
       });
 }
 
