@@ -18,6 +18,14 @@ void remoteEventHandler(GarageDoorTrigger t) {
     case GarageDoorTriggerType.IsOpenQuery:
       t.response(GarageDoor.isOpen);
       break;
+    case GarageDoorTriggerType.CloseIn:
+      assert(t.delay != null);
+      GarageDoor.closeDoorIn(t.delay);
+      break;
+    case GarageDoorTriggerType.OpenFor:
+      assert(t.delay != null);
+      GarageDoor.openDoorFor(t.delay);
+      break;
     default:
       throw UnimplementedError();
   }

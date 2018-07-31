@@ -14,20 +14,27 @@ abstract class GarageDoorRemote {
   static void initialize(SecurityContext context) => _context = context;
 
   static Future<bool> get isOpen async =>
-      _sendRequest(garageIsOpenEvent, true);
+      _sendRequest(garageIsOpenEvent, returnResponse: true);
   static Future<bool> openDoor() async => _sendRequest(garageOpenEvent);
   static Future<bool> closeDoor() async => _sendRequest(garageCloseEvent);
   static Future<bool> triggerDoor() async => _sendRequest(garageTriggerEvent);
+  static Future<void> closeDoorIn(int seconds) async =>
+      _sendRequest(garageCloseInEvent, delay: seconds);
+  static Future<void> openDoorFor(int seconds) async =>
+      _sendRequest(garageOpenForEvent, delay: seconds);
 
   static Future<bool> _sendRequest(int type,
-      [bool returnResponse = false]) async {
+      {int delay, bool returnResponse = false}) async {
     try {
       final connection = await SecureSocket.connect(
           garageExternalIP, garagePort,
-          context: context, onBadCertificate: _onBadCertificate);
+          context: _context, onBadCertificate: _onBadCertificate);
       final request = {
         garageEventType: type,
       };
+      if (delay != null) {
+        request[garageEventDelay] = delay;
+      }
       connection.write(JSON.encode(request));
       if (returnResponse) {
         final completer = Completer<bool>();

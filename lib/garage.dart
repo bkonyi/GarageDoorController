@@ -20,11 +20,14 @@ enum GarageDoorTriggerType {
   Close,
   Trigger,
   IsOpenQuery,
+  CloseIn,
+  OpenFor,
 }
 
 class GarageDoorTrigger {
   final int _type;
   final DateTime time;
+  final int delay;
   final SecureSocket _socket;
 
   GarageDoorTriggerType get type {
@@ -37,6 +40,10 @@ class GarageDoorTrigger {
         return GarageDoorTriggerType.Trigger;
       case garageIsOpenEvent:
         return GarageDoorTriggerType.IsOpenQuery;
+      case garageCloseInEvent:
+        return GarageDoorTriggerType.CloseIn;
+      case garageOpenForEvent:
+        return GarageDoorTriggerType.OpenFor;
       default:
         throw 'Unexpected GarageDoorTriggerType: $_type';
     }
@@ -48,18 +55,22 @@ class GarageDoorTrigger {
     final message = <String, dynamic>{
       garageResponse: r,
     };
-    return _socket.write(JSON.encode(message));
+    _socket.write(JSON.encode(message));
   }
 
-  GarageDoorTrigger._(this._type, this._socket) : time = DateTime.now();
+  GarageDoorTrigger._(this._type, this._socket, this.delay)
+      : time = DateTime.now();
 }
 
 class GarageDoorRemoteHandler {
   static final _controller = StreamController<GarageDoorTrigger>.broadcast();
   static Stream<GarageDoorTrigger> get remoteRequests => _controller.stream;
 
-  static StreamSubscription listen(void f(GarageDoorTrigger t)) =>
-      remoteRequests.listen(f);
+  static _onErrorDefault(e) => null;
+
+  static StreamSubscription listen(void f(GarageDoorTrigger t),
+          {Function onError: _onErrorDefault}) =>
+      remoteRequests.listen(f, onError: onError);
 
   static Future startListening() => SecureServerSocket.bind(
           InternetAddress.anyIPv6, garagePort, _serverContext,
@@ -74,7 +85,8 @@ class GarageDoorRemoteHandler {
         Map request = requestObj;
         print('Request: $request');
         assert(request.containsKey(garageEventType));
-        _controller.add(GarageDoorTrigger._(request[garageEventType], s));
+        _controller.add(GarageDoorTrigger._(
+            request[garageEventType], s, request[garageEventDelay]));
       });
 }
 
@@ -125,6 +137,13 @@ class GarageDoor {
       return triggerDoor();
     }
   }
+
+  static Future<void> closeDoorIn(int seconds) =>
+      _delay(seconds * 1000).then((void v) => closeDoor());
+
+  static Future<void> openDoorFor(int seconds) => openDoor().then((void v) {
+        _delay(seconds * 1000);
+      }).then((void _) => closeDoor());
 
   static Future<void> _delay(int ms) async =>
       await Future.delayed(Duration(milliseconds: ms));
